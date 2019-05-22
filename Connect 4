@@ -1,0 +1,1067 @@
+/*** Practica Final. Opcion 2 ***************************************************//**
+*
+* @file practica_final.cpp
+*
+* @brief Opcion 2. Practica Final
+* 
+* Este programa simula el juego Conecta 4
+*
+* @version 1.0
+* @author Alexander Scholte y Raúl Saavedra Morato
+* @date 06/01/2016 version 0.1
+* @date 17/01/2016 version 1.0 Finalizacion del programa
+*
+************************************************************************************/
+
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <ctime>
+#include <cstdlib>
+using namespace std;
+
+// DECLARACION DE CONSTANTES
+const int MAX = 10;
+const int MIN = 5;
+const string NOM_PC = "PC";
+const int MAX_JUGADAS = (MAX * MAX) / 2;
+const int MAX_RANKING = 10;
+const char FICHA_USUARIO = 'X';
+const char FICHA_PC = 'O';
+
+// DECLARACION DE TIPOS
+typedef char Matriz[MAX][MAX];
+
+// DECLARACION DE ESTRUCTURAS
+struct Jugada
+{
+    int jugada_usuario;
+    int jugada_pc;
+};
+
+typedef Jugada VecesJugadas[MAX_JUGADAS];
+
+struct Partida
+{
+    string nick;
+    VecesJugadas info;
+    Matriz tablero;
+    int ancho, alto, nivel, num_jugadas, num_piezas;
+};
+
+struct Ganador
+{
+    int posicion_ranking;
+    string nick;
+    float puntuacion;
+};
+
+typedef Ganador Ranking[MAX_RANKING];
+
+// DECLARACION DE PROTOTIPOS
+void IniciarTablero (Partida & partida);
+bool MostrarDiezMejores (void);
+void PedirDatosPartida (Partida & partida);
+void MostrarTablero (Partida & partida);
+string Juego (Partida & partida);
+void MostrarResultado (Ganador & ganador, Partida & partida);
+float PuntuacionGanador (Partida & partida);
+bool HayGanador (Partida & partida);
+bool PosicionValida (int columna, Partida & partida);
+int TurnoPc (Partida & partida);
+int TurnoJugador (Partida & partida);
+bool GuardarPartida (Partida & partida);
+bool CargarPartida (Partida & partida);
+void EscribirTurno (Partida & partida, int columna, char ficha);
+bool LeerDiezMejores (Ranking ranking);
+int PosicionRanking(Ranking rank, Ganador ganador);
+bool EscribirRanking (Ranking ranking, Ganador ganador);
+
+/** 
+* FUNCION PRINCIPAL
+*/
+int main (void)
+{
+    // DECLARACION DE VARIABLES
+    int opcion;
+    Partida partida;
+    Ganador ganador;
+    Ranking ranking;
+    
+    // ENTRADA DE DATOS
+    cout << "Introduzca su nick: ";
+    cin >> partida.nick;
+    
+    // Mostramos el rankin de los 10 mejores, si existe
+    if(MostrarDiezMejores ())
+        system("PAUSE");
+    
+    system("CLS");
+    
+    cout << "Seleccione una opcion:" << endl;
+    cout << "\t0. Para empezar una partida nueva." << endl;
+    cout << "\t1. Para renuadar una partida." << endl;
+    // Mientras que la opcion sea distinta de 0 o de 1
+    do
+    {
+        cout << endl << "Opcion: ";
+        cin >> opcion;
+        // Si la opcion es distinta de 0 o de 1
+        if (opcion != 0 && opcion != 1)
+            cout << "Seleccione una opcion valida." << endl;
+    }
+    while (opcion != 0 && opcion != 1);
+    
+    system ("CLS");
+    
+    // PROCESAMIENTO DE DATOS Y ENTRADA DE DATOS
+    // Se limpia el tablero
+    IniciarTablero (partida);
+    
+    // Dependiendo de la opcion introducida
+    switch (opcion)
+    {
+        // Si la opcion es 0
+        case 0:
+            // Se piden los datos de la partida
+            PedirDatosPartida (partida);
+            // Se juega al juego, devolviendo el ganador, si lo hay
+            ganador.nick = Juego (partida);
+            
+            break;
+        // Si la opcion es 1
+        case 1:
+            // Se carga la partida, si se ha podido cargar la partida
+            if (CargarPartida (partida))
+                // Se juega al juego, devolviendo el ganador, si lo hay
+                ganador.nick = Juego (partida);
+            // Si no se ha podido cargar la partida
+            else
+            {
+                cout << "Error al cargar la partida" << endl;
+                ganador.nick = "guardar";
+            }
+            
+            break;
+    }
+    // Si no se ha quedado empate ni se ha guardado
+    if (ganador.nick != "empate" && ganador.nick != "guardar")
+    {
+        // Se calcula la puntuacion
+        ganador.puntuacion = PuntuacionGanador (partida);
+        // Se leen las 10 mejores puntuaciones, si existen las puntuaciones
+        if(LeerDiezMejores (ranking))
+        {
+            // Se determina la posicion en la que debemos guardar el ganador
+            ganador.posicion_ranking = PosicionRanking(ranking, ganador);
+            // Si la posicion del ganador esta entre 0 y 10 incluyendo el cero
+            if (ganador.posicion_ranking < 10 && ganador.posicion_ranking >= 0)
+                // Se escribe la puntuacion
+                EscribirRanking (ranking, ganador);
+        }
+        // Si no se ha podido abrir la puntuacion
+        else
+            // Se escribe la puntuacion
+            EscribirRanking(ranking, ganador);
+    }
+    // Si no se ha guardado
+    if (ganador.nick != "guardar")
+    {
+        system("CLS");
+        // Se muestra el resultado de la partida
+        MostrarResultado (ganador, partida);
+    }
+        
+    return 0;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion inicia el tablero
+*
+* @param[in, out] partida
+* 
+************************************************************************************/
+void IniciarTablero (Partida & partida)
+{   
+    // DECLARACION DE VARIABLES
+    int i, j;
+    
+    // PROCESAMIENTO DE DATOS
+    // Se limpia la matriz
+    for (i = 0; i < MAX; i++)
+        for (j = 0; j < MAX; j++)
+            partida.tablero[i][j] = ' ';
+    
+    return;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion pide los datos necesarios para comenzar una partida nueva
+*
+* @param[in, out] partida
+* 
+************************************************************************************/
+void PedirDatosPartida (Partida & partida)
+{ 
+    // ENTRADA DE DATOS
+    cout << "Introduzca el tamanyo del tablero: " << endl;
+    // Mientras que el ancho de introducido no este entre el maximo y el minimo
+    do
+    {
+        cout << "\tDame ancho del tablero: ";
+        cin >> partida.ancho;
+        if (partida.ancho < MIN || partida.ancho > MAX)
+            cout << "Entre 5 y 10" << endl;
+    }
+    while (partida.ancho < MIN || partida.ancho > MAX);
+    // Mientras que el alto de introducido no este entre el maximo y el minimo
+    do
+    {
+        cout << "\tDame alto del tablero: ";
+        cin >> partida.alto;
+        if (partida.alto < MIN || partida.alto > MAX)
+            cout << "Entre 5 y 10" << endl;
+    }
+    while (partida.alto < MIN || partida.alto > MAX);
+    
+    cout << endl << "Seleccione un nivel: " << endl;
+    cout << "\t0. Para principiante." << endl;
+    cout << "\t1. Para avanzado." << endl;
+    // Mientras que el nivel elegido sea distinto de 0 o de 1
+    do
+    {
+        cout << "Nivel: ";
+        cin >> partida.nivel;
+        if (partida.nivel != 0 && partida.nivel != 1)
+            cout << endl << "Seleccione un nivel valido." << endl;
+    }
+    while (partida.nivel != 0 && partida.nivel != 1);
+    
+    partida.num_jugadas = 0;
+    partida.num_piezas = 0;
+    
+    return;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion muestra el ranking de las 10 mejores partidas con las puntuaciones
+* y los jugadores que lo han conseguido
+*
+* @return ok
+* 
+************************************************************************************/
+bool MostrarDiezMejores (void)
+{
+    // DECLARACION DE VARIABLES
+    ifstream conecta4;
+    Ganador ranking;
+    bool ok = false;
+    
+    // ENTRADA DE DATOS
+    // Se asocian a los descriptores de fichero el fichero fisico
+    conecta4.open("conecta4.juego");
+    // Si se ha podido abrir 
+    if (conecta4)
+    {
+        ok = true;
+        // Mientras que se pueda leer el ranking y el ranking sea distinto de 0
+        while (conecta4 >> ranking.posicion_ranking && ranking.posicion_ranking != 0)
+        {
+            conecta4 >> ranking.nick;
+            conecta4 >> ranking.puntuacion;
+            
+            cout << ranking.posicion_ranking << ". " << ranking.nick << "\t" << ranking.puntuacion<< endl;
+        }
+    }   
+    
+    conecta4.close();
+    
+    return ok;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion lee las puntuaciones de los 10 mejores jugadores de un fichero
+*
+* @param[in] ranking
+*
+* @return ok
+* 
+************************************************************************************/
+bool LeerDiezMejores (Ranking ranking)
+{
+    // DECLARACION DE VARIABLES
+    ifstream fichero;
+    int i = 0, j = 0;
+    bool ok = false;
+    
+    // PROCESAMIENTO Y ENTRADA DE DATOS
+    // Se limpia el vector
+    for (i = 0; i < MAX_RANKING; i++)
+    {
+        ranking[i].posicion_ranking = 0;
+        ranking[i].nick = ' ';
+        ranking[i].puntuacion = 0;
+    }
+    
+    fichero.open("conecta4.juego");
+    // Si se ha podido abrir
+    if (fichero)
+    {
+        ok = true;
+        // Mientras que se pueda leer la posiscion de la puntuacion
+        while (fichero >> ranking[j].posicion_ranking)
+        {
+            fichero >> ranking[j].nick;
+            fichero >> ranking[j].puntuacion;
+            
+            j++;
+        }      
+    }
+    
+    fichero.close();
+    
+    return ok; 
+}
+
+/********************************************************************************//**
+*
+* Esta funcion determina la posicion en la que deberia estar la puntuacion obtenida
+*
+* @param[in] ranking
+* @param[in] ganador
+*
+* @return i
+* 
+************************************************************************************/
+int PosicionRanking(Ranking ranking, Ganador ganador)
+{
+    // DECLARACION DE VARIABLES
+    int i = 0;
+    bool ok = false;
+    
+    // PROCESAMIENTO DE DATOS
+    // Mientras que hayan valores y no se haya determinado la posicion
+    while (ranking[i].posicion_ranking && !ok)
+    {
+        // Si la puntuacion obtenida es mayor que la puntuacion del ranking
+        if (ranking[i].puntuacion < ganador.puntuacion)
+            ok = true;
+        // Si no
+        else
+            i++;
+    }
+    
+    return i;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion escribe la puntuacion obtenida
+*
+* @param[in] ranking
+* @param[in] ganador
+*
+* @return ok
+* 
+************************************************************************************/
+bool EscribirRanking (Ranking ranking, Ganador ganador)
+{
+    // DECLARACION DE VARIABLES
+    int i, j = 0;
+    bool ok = false;
+    ifstream conecta4;
+    ofstream fichero;
+    
+    // PROCESAMIENRO DE DATOS
+    conecta4.open("conecta4.juego");
+    // Si se ha abierto el fichero
+    if (conecta4)
+    {
+        i = MAX_RANKING - 1;
+        // Mientras que no se llegue a la posicion deseada
+        while (i > ganador.posicion_ranking)
+        {
+            // Si en la posisicion anterior el ranking es distinto de 0
+            if (ranking[i - 1].posicion_ranking != 0)
+            {
+                // Se guarda la informacion en la posicion actual
+                ranking[i].posicion_ranking = i + 1;
+                ranking[i].nick = ranking[i - 1].nick;
+                ranking[i].puntuacion = ranking[i - 1].puntuacion;
+            }
+            // Si es igual a cero
+            else
+            {
+                ranking[i].posicion_ranking = 0;
+                ranking[i].nick = ' ';
+                ranking[i].puntuacion = 0;
+            }
+            
+            i--;
+        }
+        // Se guarda la puntuacion obtenida en la posicion obtenida anteriormente
+        ranking[i].posicion_ranking = ganador.posicion_ranking + 1;
+        ranking[i].nick = ganador.nick;
+        ranking[i].puntuacion = ganador.puntuacion;   
+    }
+    // Si no existe el fichero conecta4
+    else 
+    {
+        // Se guarda la puntuacion obtenida en la primera posicion
+        ranking[0].posicion_ranking = 1;
+        ranking[0].nick = ganador.nick;
+        ranking[0].puntuacion = ganador.puntuacion;
+    }
+    
+    conecta4.close();
+    
+    fichero.open("conecta4.juego");
+    // Si se ha abierto el fichero correctamente
+    if (fichero)
+    {
+        ok = true;
+        // Mientras que j sea manor que el numero de puntuaciones en el ranking
+        while (j < MAX_RANKING)
+        {
+            // Se escribe la puntuacion en el fichero
+            fichero << ranking[j].posicion_ranking;
+            fichero << "\t" << ranking[j].nick << "\t";
+            fichero << ranking[j].puntuacion << endl;
+            
+            j++;
+        }
+    }
+    
+    fichero.close();
+    
+    return ok;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion muestra el tablero
+*
+* @param[in, out] partida
+* 
+************************************************************************************/
+void MostrarTablero (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    int i, j;
+    
+    // SALIDA DE DATOS
+    cout << endl << "   ";
+    for (i = 0; i < partida.ancho; i++)
+        cout << i;
+        
+    cout << endl << " --";
+    
+    for (i = 0; i < partida.ancho; i++)
+        cout << "-";
+        
+    cout << "--" << endl;
+    
+    // SALIDA DE DATOS
+    for (i = partida.alto - 1; i >= 0; i--)
+    {
+        cout << " " << i;
+        cout << "|";
+        
+        for (j = 0; j < partida.ancho; j++)
+            cout << partida.tablero[i][j];
+            
+        cout << "|" << endl;
+    }
+    
+    cout << " --";
+    
+    for (i = 0; i < partida.ancho; i++)
+        cout << "-";
+        
+    cout << "--" << endl;
+    cout << "   ";
+    
+    for (i = 0; i < partida.ancho; i++)
+        cout << i;
+         
+    cout << endl << endl;
+    
+    return;
+}
+ 
+/********************************************************************************//**
+*
+* Esta funcion calcula la puntuacion del ganador
+* 
+* @param[in, out] partida
+*
+* @return puntos
+*
+************************************************************************************/
+float PuntuacionGanador (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    float puntos;
+    
+    // PROCESAMIENTRO DE DATOS
+    // Formula para calucular la puntuacion
+    puntos = (10 * partida.alto * partida.ancho) - (partida.num_piezas * 2);
+    // Si el nivel es avanzado
+    if (partida.nivel == 1)
+        // Se multiplica por 2 el resultado
+        puntos *= 2;
+    
+    return puntos;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion muestra por pantalla el resultado de la partida
+* 
+* @param[in, out] ganador
+* @param[in, out] partida
+*
+************************************************************************************/
+void MostrarResultado (Ganador & ganador, Partida & partida)
+{
+    // SALIDA DE DATOS
+    // Si el ganador es el pc o el usuario
+    if (ganador.nick == NOM_PC || ganador.nick == partida.nick)
+    {
+        cout << "Ha ganado " << ganador.nick << endl;
+        cout << "Con una puntuacion de " << ganador.puntuacion << " puntos." << endl;
+    }
+    // Si no
+    else
+        cout << "Se ha empatado" << endl;
+        
+    system("PAUSE");
+        
+    return;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion comprueba si un jugador a conseguido 4 en raya
+* 
+* @param[in, out] partida
+*
+* @return ganador
+*
+************************************************************************************/
+bool HayGanador (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    int i, j;
+    bool ganador = false;
+   
+    // PROCESAMIENTO DE INFORMACION
+    // Se recorre el tablero 
+    for (i = 0; i < partida.alto; i++)
+    {
+        for (j = 0; j < partida.ancho; j++)
+        {
+            // Si hay 4 en raya en una horizontal
+            if ((partida.tablero[i][j] == FICHA_PC && partida.tablero[i + 1][j] == FICHA_PC && partida.tablero[i + 2][j] == FICHA_PC && partida.tablero[i + 3][j] == FICHA_PC) || (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i + 1][j] == FICHA_USUARIO && partida.tablero[i + 2][j] == FICHA_USUARIO && partida.tablero[i + 3][j] == FICHA_USUARIO))
+                // Hay un ganador
+                ganador = true;
+            // Si hay 4 en raya en una vertical
+            else if ((partida.tablero[i][j] == FICHA_PC && partida.tablero[i][j + 1] == FICHA_PC && partida.tablero[i][j + 2] == FICHA_PC && partida.tablero[i][j + 3] == FICHA_PC) || (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i][j + 1] == FICHA_USUARIO && partida.tablero[i][j + 2] == FICHA_USUARIO && partida.tablero[i][j + 3] == FICHA_USUARIO)) 
+                // Hay un ganador
+                ganador = true;
+            // Si hay 4 en raya en diagonal desde abajo hacia la derecha
+            else if ((partida.tablero[i][j] == FICHA_PC && partida.tablero[i + 1][j + 1] == FICHA_PC && partida.tablero[i + 2][j + 2] == FICHA_PC && partida.tablero[i + 3][j + 3] == FICHA_PC) || (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i + 1][j + 1] == FICHA_USUARIO && partida.tablero[i + 2][j + 2] == FICHA_USUARIO && partida.tablero[i + 3][j + 3] == FICHA_USUARIO))
+                // Hay un ganador
+                ganador = true;
+            // Si hay un ganador en diagonal desde abajo hacia la izquierda
+            else if ((partida.tablero[i][j] == FICHA_PC && partida.tablero[i + 1][j - 1] == FICHA_PC && partida.tablero[i + 2][j - 2] == FICHA_PC && partida.tablero[i + 3][j - 3] == FICHA_PC) || (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i + 1][j - 1] == FICHA_USUARIO && partida.tablero[i + 2][j - 2] == FICHA_USUARIO && partida.tablero[i + 3][j - 3] == FICHA_USUARIO))
+                // Hay un ganador
+                ganador = true;
+        }
+    }
+
+    return ganador;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion comprueba si la columna elegida es una columna valida
+* 
+* @param[in] columna
+* @param[in, out] partida
+*
+* @return ok
+*
+************************************************************************************/
+bool PosicionValida (int columna, Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    bool ok = false;
+    int i = 0;
+    
+    // PROCESAMIENRO DE DATOS
+    // Si la columna es menor que el ancho del tablero y es mayor que -2
+    if (columna < partida.ancho && columna >= 0)
+    {
+        // Si i es menor que la altura del teblero y mientras que ok sea falso
+        while (i < partida.alto && ok == false)
+        {
+            // Si en la columna seleccionada hay filas libres
+            if (partida.tablero[i][columna] != FICHA_PC && partida.tablero[i][columna] != FICHA_USUARIO)
+                ok = true;
+            // Si no
+            else   
+                i++;
+        }
+    }
+
+    return ok;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion coloca la ficha del usuario
+* 
+* @param[in, out] partida
+*
+* @return columna
+*
+************************************************************************************/
+int TurnoJugador (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    int columna;
+    
+    // PROCESAMIENTO DE DATOS
+    // Mientras la posicion no es valida
+    do
+    {
+        cout << "Dame Columna: ";
+        cin >> columna;
+        // Si la posicion no es valida
+        if (!PosicionValida(columna, partida) && columna != -1)
+            cout << "\tColumna no valida." << endl;
+    }
+    while (!PosicionValida(columna, partida) && columna != -1);
+
+    return columna;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion coloca la ficha del pc
+* 
+* @param[in, out] partida
+*
+* @return columna
+*
+************************************************************************************/
+int TurnoPc (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    int columna, i = 0, j = 0, k = 0, t = 0;
+    bool ok = false;
+    
+    // PROCESAMIENTO DE DATOS
+    srand(time(NULL));
+    // Si el nivel es 0, principiante
+    if (partida.nivel == 0)
+    {
+        // Mientras que la posicion no se valida
+        do
+        {
+            // Se le da a columna una ficha aleatoriamente
+            columna = rand () % partida.ancho + 1;
+        }
+        while (!PosicionValida(columna, partida));
+    }
+    // Si el nivel es 1, avanzado
+    else if (partida.nivel == 1)
+    {
+        while (i < partida.alto && !ok)
+        {
+            while (j < partida.ancho && !ok)
+            {
+                // Si al usuario le falta una ficha para completar 4 en raya se coloca una ficha para impedir que complete la fila, columna, o diagonal. Comprobando antes que la posicion sea valida
+                if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i + 1][j] == FICHA_USUARIO && partida.tablero[i + 2][j] == FICHA_USUARIO && PosicionValida(j, partida) && partida.tablero[i + 3][j] != FICHA_PC)
+                {
+                    columna = j;
+                    ok = true;
+                }    
+                else if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i][j + 1] == FICHA_USUARIO && partida.tablero[i][j + 2] == FICHA_USUARIO && PosicionValida(j + 3, partida) && partida.tablero[i][j + 3] != FICHA_PC)
+                {
+                    columna = j + 3;
+                    ok = true;
+                }
+                else if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i + 1][j + 1] == FICHA_USUARIO && partida.tablero[i + 2][j + 2] == FICHA_USUARIO && PosicionValida(j + 3, partida) && partida.tablero[i + 3][j + 3] != FICHA_PC)
+                {
+                    columna = j + 3;
+                    ok = true;
+                }
+                else if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i + 1][j - 1] == FICHA_USUARIO && partida.tablero[i + 2][j - 2] == FICHA_USUARIO && PosicionValida(j - 3, partida) && partida.tablero[i + 3][j - 3] != FICHA_PC)
+                {
+                    columna = j - 3;
+                    ok = true;
+                }
+                else if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i][j + 2] == FICHA_USUARIO && partida.tablero[i][j + 3] == FICHA_USUARIO && PosicionValida(j + 1, partida) && partida.tablero[i][j + 1] != FICHA_PC)
+                {
+                    columna = j + 1;
+                    ok = true;
+                }
+                else if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i][j + 1] == FICHA_USUARIO && partida.tablero[i][j + 3] == FICHA_USUARIO && PosicionValida(j + 2, partida) && partida.tablero[i][j + 2] != FICHA_PC)
+                {
+                    columna = j + 2;
+                    ok = true;
+                }
+                else if (partida.tablero[i][j] == FICHA_USUARIO && partida.tablero[i][j - 1] == FICHA_USUARIO && partida.tablero[i][j - 2] == FICHA_USUARIO && PosicionValida(j - 3, partida) && partida.tablero[i][j - 3] != FICHA_PC)
+                {
+                    columna = j - 3;
+                    ok = true;
+                }
+                j++;
+            }
+            i++;
+        }
+        
+        k = 0;
+        t = 0;
+        
+        while (k < partida.alto && !ok)
+        {
+            while (t < partida.ancho && !ok)
+            {
+                // Si falta una ficha del pc para completar las 4 en raya se coloca en la fila, columna o diagonal. Comprobando antes que la posicion sea valida
+                if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k + 1][t] == FICHA_PC && partida.tablero[k + 2][t] == FICHA_PC && PosicionValida(t, partida) && partida.tablero[k + 3][t] != FICHA_USUARIO)
+                {
+                    columna = t;
+                    ok = true;   
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k][t + 1] == FICHA_PC && partida.tablero[k][t + 2] == FICHA_PC && PosicionValida(t + 3, partida) && partida.tablero[k][t + 3] != FICHA_USUARIO)
+                {
+                    columna = t + 3;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k + 1][t + 1] == FICHA_PC && partida.tablero[k + 2][t + 2] == FICHA_PC && PosicionValida(t + 3, partida) && partida.tablero[k + 3][t + 3] != FICHA_USUARIO)
+                {
+                    columna = t + 3;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k + 1][t - 1] == FICHA_PC && partida.tablero[k + 2][t - 2] == FICHA_PC && PosicionValida(t - 3, partida) && partida.tablero[k + 3][t - 3] != FICHA_USUARIO)
+                {
+                    columna = t - 3;
+                    ok = true; 
+                }
+                
+                t++;
+            }
+            k++;
+        } 
+        
+        k = 0;
+        t = 0;
+        
+        while (k < partida.alto && !ok)
+        {
+            while (t < partida.ancho && !ok)
+            {
+                // Si hay dos fichas de del pc se coloca la tercera en la fila, columna o diagonal. Comprobando antes que la posicion sea valida
+                if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k + 1][t] == FICHA_PC && PosicionValida(t, partida) && partida.tablero[k + 2][t] != FICHA_USUARIO && partida.tablero[k + 3][t] != FICHA_USUARIO)
+                {
+                    columna = t;
+                    ok = true;   
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k][t + 1] == FICHA_PC && PosicionValida(t + 2, partida) && partida.tablero[k][t + 2] != FICHA_USUARIO && partida.tablero[k][t + 3] != FICHA_USUARIO)
+                {
+                    columna = t + 2;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k + 1][t + 1] == FICHA_PC && PosicionValida(t + 2, partida) && partida.tablero[k + 2][t + 2] != FICHA_USUARIO && partida.tablero[k + 3][t + 3] != FICHA_USUARIO)
+                {
+                    columna = t + 2;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && partida.tablero[k + 1][t - 1] == FICHA_PC && PosicionValida(t - 2, partida) && partida.tablero[k + 2][t - 2] != FICHA_USUARIO && partida.tablero[k + 3][t - 3] != FICHA_USUARIO)
+                {
+                    columna = t - 2;
+                    ok = true; 
+                }
+                
+                t++;
+            }
+            k++;
+        }
+                
+        k = 0;
+        t = 0;
+        
+        while (k < partida.alto && !ok)
+        {
+            while (t < partida.ancho && !ok)
+            {
+                // Si hay una ficha de del pc se coloca la segunda en la fila, columna o diagonal. Comprobando antes que la posicion sea valida
+                if (partida.tablero[k][t] == FICHA_PC && PosicionValida(t, partida) && partida.tablero[k + 1][t] != FICHA_USUARIO && partida.tablero[k + 2][t] != FICHA_USUARIO)
+                {
+                    columna = t;
+                    ok = true;   
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && PosicionValida(t + 1, partida) && partida.tablero[k][t + 1] != FICHA_USUARIO && partida.tablero[k][t + 2] != FICHA_USUARIO)
+                {
+                    columna = t + 1;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && PosicionValida(t + 1, partida) && partida.tablero[k + 1][t + 1] != FICHA_USUARIO && partida.tablero[k + 2][t + 2] != FICHA_USUARIO)
+                {
+                    columna = t + 1;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_PC && PosicionValida(t - 1, partida) && partida.tablero[k + 1][t - 1] != FICHA_USUARIO && partida.tablero[k + 2][t - 2] != FICHA_USUARIO)
+                {
+                    columna = t - 1;
+                    ok = true; 
+                }
+                
+                t++;
+            }
+            k++;
+        }
+
+        k = 0;
+        t = 0;
+        
+        while (k < partida.alto && !ok)
+        {
+            while (t < partida.ancho && !ok)
+            {
+                // Si no hay ninguna ficha del pc en ninguna fila, columna o diagonal, se coloca al lado de la ficha puesta por el usuario. Comprobando antes que la posicion sea valida
+                if (partida.tablero[k][t] == FICHA_USUARIO && PosicionValida(t - 1, partida))
+                {
+                    columna = t - 1;
+                    ok = true; 
+                }
+                else if (partida.tablero[k][t] == FICHA_USUARIO && PosicionValida(t + 1, partida))
+                {
+                    columna = t + 1;
+                    ok = true; 
+                } 
+                
+                t++;
+            }
+            k++;
+        } 
+    }
+    
+    system ("PAUSE");
+    
+    return columna;    
+}
+
+/********************************************************************************//**
+*
+* Esta funcion guarda la partida
+* 
+* @param[in, out] partida
+*
+* @return ok
+*
+************************************************************************************/
+bool GuardarPartida (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    string nombre_fichero;
+    ofstream fichero;
+    bool ok = false;
+    
+    // ENTRADA DE DATOS
+    cout << "Introduce el nombre del fichero: ";
+    cin >> nombre_fichero;
+    
+    fichero.open((nombre_fichero + ".partida").c_str(), ios::binary);
+    // Si se ha podido abrir el fichero
+    if (fichero)
+    {
+        // Se escribe en el la informacion relevante
+        fichero.write((char *)(&partida.info), sizeof (VecesJugadas));
+        fichero.write((char *)(&partida.tablero), sizeof (Matriz));
+        fichero.write((char *)(&partida.ancho), sizeof (int));
+        fichero.write((char *)(&partida.alto), sizeof (int));
+        fichero.write((char *)(&partida.nivel), sizeof (int));
+        fichero.write((char *)(&partida.num_jugadas), sizeof (int));
+        fichero.write((char *)(&partida.num_piezas), sizeof (int));
+        
+        ok = true;
+    }
+        
+    fichero.close();
+    
+    return ok;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion carga una partida
+* 
+* @param[in, out] partida
+*
+* @return ok
+*
+************************************************************************************/
+bool CargarPartida (Partida & partida)
+{
+    // DECLARACION DE VARIABLES
+    string nombre_fichero;
+    ifstream fichero;
+    bool ok = false;
+    
+    // ENTRADA DE DATOS
+    cout << "Introduce el nombre del fichero: ";
+    cin >> nombre_fichero;
+    
+    fichero.open((nombre_fichero + ".partida").c_str(), ios::binary);
+    // Si se ha podido abrir el fichero
+    if (fichero)
+    {
+        // Se lee la informaicion relevante
+        fichero.read((char *)(&partida.info), sizeof (VecesJugadas));
+        fichero.read((char *)(&partida.tablero), sizeof (Matriz));
+        fichero.read((char *)(&partida.ancho), sizeof (int));
+        fichero.read((char *)(&partida.alto), sizeof (int));
+        fichero.read((char *)(&partida.nivel), sizeof (int));
+        fichero.read((char *)(&partida.num_jugadas), sizeof (int));
+        fichero.read((char *)(&partida.num_piezas), sizeof (int)); 
+        
+        ok = true;
+    }
+    // cout << partida.nick; // << endl << partida.ancho << endl << partida.alto << endl << partida.nivel;
+    
+    fichero.close();
+    
+    return ok;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion escribe la ficha en la posicion deseada
+* 
+* @param[in, out] partida
+* @param[in] columna
+* @param[in] ficha
+*
+************************************************************************************/
+void EscribirTurno (Partida & partida, int columna, char ficha)
+{
+    // DECLARACION DE VARIABLES
+    int i = 0;
+    
+    // PROCESAMIENTO DE DATOS
+    // Si la columna es distinto de -1
+    if (columna != -1)
+    {
+        // Si la casilla esta vacia
+        if (partida.tablero[i][columna] != FICHA_PC && partida.tablero[i][columna] != FICHA_USUARIO)
+            // Se escribe la ficha
+            partida.tablero[i][columna] = ficha;
+        // Si la casilla no esta vacia
+        else
+        {
+            // Mientras que la casilla no esta vacia se pasa a la siguiente fila
+            while (partida.tablero[i][columna] == FICHA_PC || partida.tablero[i][columna] == FICHA_USUARIO)   
+                i++;
+            // Si la casilla esta vacia
+            if (partida.tablero[i][columna] != FICHA_PC && partida.tablero[i][columna] != FICHA_USUARIO)
+                partida.tablero[i][columna] = ficha; 
+        }
+    }
+        
+    return;
+}
+
+/********************************************************************************//**
+*
+* Esta funcion pone fichas, alternando entre el usuario y una funcion hasta que
+* gane uno de los dos o se complete el tablero
+* 
+* @param[in, out] partida
+*
+* return nick_ganador
+*
+************************************************************************************/
+string Juego (Partida & partida)
+{
+    // DELCARACION DE VARIABLES
+    bool ganador = false, guardar = false;
+    string nick_ganador = "empate";
+    int i = partida.num_jugadas;
+    
+    // PROCESAMIENTO DE DATOS
+    system("CLS");
+    MostrarTablero (partida);
+    system("PAUSE");
+    
+    // Mientas que no haya un ganador y la i sea menor a las maximas jugadas y no se haya guardado
+    while (!ganador && i < MAX_JUGADAS && !guardar)
+    {
+        system("CLS");
+        // Se le pide al usuario que ponga una ficha
+        partida.info[i].jugada_usuario = TurnoJugador(partida);
+        // Si la columna introducida es -1
+        if (partida.info[i].jugada_usuario == -1)
+        {
+            // Se guarda
+            guardar = true;
+            // Se guardan el numerod e jugadas
+            partida.num_jugadas = i; 
+            // Se devuelve que se va a guardar 
+            nick_ganador = "guardar";
+            // Si se ha podido guardar con exito
+            if (GuardarPartida (partida))
+                cout << "Se ha guardado la partida." << endl;
+        }
+        // Si es distinto a -1
+        else
+        {
+            // Se escribe la ficha en el tablero
+            EscribirTurno (partida, partida.info[i].jugada_usuario, FICHA_USUARIO);
+            // Se suma uno al numero de piezas
+            partida.num_piezas++;
+            // Se muestra el tablero
+            MostrarTablero (partida);
+            system("PAUSE");
+            // Se comprueba si el usuario a conectado 4 en raya
+            ganador = HayGanador (partida);
+            // Si ha ganado
+            if (ganador)
+                // Se devuelve que ha ganado el usuario
+                nick_ganador = partida.nick;
+            // Si no
+            else
+            {
+                // Se le piede al la funcion que ponga una ficha
+                partida.info[i].jugada_pc = TurnoPc(partida);
+                // Se escribe la ficha en la posicion indicada por la funcion
+                EscribirTurno (partida, partida.info[i].jugada_pc, FICHA_PC);
+                // Se suma una pieza
+                partida.num_piezas++;
+                system("CLS");
+                // Se muetra el tablero con la columna jugada
+                cout << "Mi tirada: columna " << partida.info[i].jugada_pc << endl;
+                MostrarTablero (partida);
+                system("PAUSE");
+                // Se comprueba si se ha conectado 4 en raya
+                ganador = HayGanador (partida);
+                // Si ha ganado
+                if (ganador)
+                    // Se devuelve que ha ganado el pc
+                    nick_ganador = NOM_PC;
+            }
+            // Se suma uno a las jugadas
+            partida.num_jugadas++;
+            i++;
+        }
+    }
+    
+    return nick_ganador;
+}
